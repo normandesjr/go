@@ -508,25 +508,25 @@ func (t Time) locabs() (name string, offset int, abs uint64) {
 
 // Date returns the year, month, and day in which t occurs.
 func (t Time) Date() (year int, month Month, day int) {
-	year, month, day, _ = t.date(true)
+	year, month, day = t.date(true)
 	return
 }
 
 // Year returns the year in which t occurs.
 func (t Time) Year() int {
-	year, _, _, _ := t.date(false)
+	year, _, _ := t.date(false)
 	return year
 }
 
 // Month returns the month of the year specified by t.
 func (t Time) Month() Month {
-	_, month, _, _ := t.date(true)
+	_, month, _ := t.date(true)
 	return month
 }
 
 // Day returns the day of the month specified by t.
 func (t Time) Day() int {
-	_, _, day, _ := t.date(true)
+	_, _, day := t.date(true)
 	return day
 }
 
@@ -565,7 +565,7 @@ func (t Time) ISOWeek() (year, week int) {
 	}
 	// find the Thursday of the calendar week
 	abs += uint64(d) * secondsPerDay
-	year, _, _, yday := absDate(abs, false)
+	year, _, _, yday := absDateFull(abs, false)
 	return year, yday/7 + 1
 }
 
@@ -608,8 +608,7 @@ func (t Time) Nanosecond() int {
 // YearDay returns the day of the year specified by t, in the range [1,365] for non-leap years,
 // and [1,366] in leap years.
 func (t Time) YearDay() int {
-	_, _, _, yday := t.date(false)
-	return yday + 1
+	return absYearDay(t.abs()) + 1
 }
 
 // A Duration represents the elapsed time between two instants
@@ -979,82 +978,142 @@ const (
 
 // date computes the year, day of year, and when full=true,
 // the month and day in which t occurs.
-func (t Time) date(full bool) (year int, month Month, day int, yday int) {
+func (t Time) date(full bool) (year int, month Month, day int) {
 	return absDate(t.abs(), full)
 }
 
-// absDate is like date but operates on an absolute time.
-func absDate(abs uint64, full bool) (year int, month Month, day int, yday int) {
-	// Split into time and day.
-	d := abs / secondsPerDay
+func absDate(abs uint64, full bool) (year int, month Month, day int) {
+	daysAbs := int64(abs / secondsPerDay)
+	daysUnix := int32(daysAbs - (unixToInternal+internalToAbsolute)/secondsPerDay)
 
-	// Account for 400 year cycles.
-	n := d / daysPer400Years
-	y := 400 * n
-	d -= daysPer400Years * n
+	// Shift and correction constants.
+	s := uint32(3670)
+	K := uint32(719468 + 146097*s)
+	L := int(400 * s)
 
-	// Cut off 100-year cycles.
-	// The last cycle has one extra leap year, so on the last day
-	// of that year, day / daysPer100Years will be 4 instead of 3.
-	// Cut it back down to 3 by subtracting n>>2.
-	n = d / daysPer100Years
-	n -= n >> 2
-	y += 100 * n
-	d -= daysPer100Years * n
+	N := uint32(daysUnix) + K
 
-	// Cut off 4-year cycles.
-	// The last cycle has a missing leap year, which does not
-	// affect the computation.
-	n = d / daysPer4Years
-	y += 4 * n
-	d -= daysPer4Years * n
+	// Century
+	N_1 := 4*N + 3
+	C := N_1 / 146097
 
-	// Cut off years within a 4-year cycle.
-	// The last year is a leap year, so on the last day of that year,
-	// day / 365 will be 4 instead of 3. Cut it back down to 3
-	// by subtracting n>>2.
-	n = d / 365
-	n -= n >> 2
-	y += n
-	d -= 365 * n
+	// Year
+	R := N_1 % 146097
+	N_2 := R | 3
+	P_2 := 2939745 * uint64(N_2)
+	Z := uint32(P_2 / 4294967296)
+	N_Y := uint32(P_2%4294967296) / 2939745 / 4
 
-	year = int(int64(y) + absoluteZeroYear)
-	yday = int(d)
+	J := 0
+	if N_Y >= 306 {
+		J = 1
+	}
+
+	Y := 100*C + Z
+	year = int(Y) - L + J
 
 	if !full {
 		return
 	}
 
-	day = yday
-	if isLeap(year) {
-		// Leap year
-		switch {
-		case day > 31+29-1:
-			// After leap day; pretend it wasn't there.
-			day--
-		case day == 31+29-1:
-			// Leap day.
-			month = February
-			day = 29
-			return
-		}
-	}
+	// Month and day
+	N_3 := 2141*N_Y + 197913
+	M := N_3 / 65536
+	D := N_3 % 65536 / 2141
 
-	// Estimate month on assumption that every month has 31 days.
-	// The estimate may be too low by at most one month, so adjust.
-	month = Month(day / 31)
-	end := int(daysBefore[month+1])
-	var begin int
-	if day >= end {
-		month++
-		begin = end
-	} else {
-		begin = int(daysBefore[month])
+	month = Month(M)
+	if J == 1 {
+		month = Month(M - 12)
 	}
+	day = int(D + 1)
 
-	month++ // because January is 1
-	day = day - begin + 1
 	return
+}
+
+func absDateFull(abs uint64, full bool) (year int, month Month, day int, yday int) {
+	daysAbs := int64(abs / secondsPerDay)
+
+	daysUnix := int32(daysAbs - (unixToInternal+internalToAbsolute)/secondsPerDay)
+
+	// Shift and correction constants.
+	s := uint32(3670)
+	K := uint32(719468 + 146097*s)
+	L := int(400 * s)
+
+	N := uint32(daysUnix) + K
+
+	// Century
+	N_1 := 4*N + 3
+	C := N_1 / 146097
+
+	// Year
+	R := N_1 % 146097
+	N_2 := R | 3
+	P_2 := 2939745 * uint64(N_2)
+	Z := uint32(P_2 / 4294967296)
+	N_Y := uint32(P_2%4294967296) / 2939745 / 4
+
+	isLeapYear := 0
+	if Z != 0 {
+		if Z%4 == 0 {
+			isLeapYear = 1
+		}
+	} else if C%4 == 0 {
+		isLeapYear = 1
+	}
+
+	J := 0
+	if N_Y >= 306 {
+		J = 1
+	}
+
+	yday = int(N_Y)
+	if J == 1 {
+		yday = yday - 306
+	} else {
+		yday = yday + 31 + 28 + isLeapYear
+	}
+
+	Y := 100*C + Z
+	year = int(Y) - L + J
+
+	if !full {
+		return
+	}
+
+	// Month and day
+	N_3 := 2141*N_Y + 197913
+	M := N_3 / 65536
+	D := N_3 % 65536 / 2141
+
+	month = Month(M)
+	if J == 1 {
+		month = Month(M - 12)
+	}
+	day = int(D + 1)
+
+	return
+}
+
+func absYearDay(abs uint64) int {
+	daysAbs := int64(abs / secondsPerDay)
+	daysUnix := int32(daysAbs - (unixToInternal+internalToAbsolute)/secondsPerDay)
+
+	// Shift and correction constants.
+	s := uint32(3670)
+	K := uint32(719468 - 306 + 146097*s)
+	N := uint32(daysUnix) + K
+
+	// Century
+	N_1 := 4*N + 3
+
+	// Year
+	R := N_1 % 146097
+	N_2 := R | 3
+	P_2 := 2939745 * uint64(N_2)
+	N_Y := uint32(P_2%4294967296) / 2939745 / 4
+
+	return int(N_Y)
 }
 
 // daysBefore[m] counts the number of days in a non-leap year
@@ -1083,10 +1142,33 @@ func daysIn(m Month, year int) int {
 	return int(daysBefore[m] - daysBefore[m-1])
 }
 
+func daysSinceEpoch(year int, month Month, day int) int32 {
+	s := uint32(3670)
+	K := uint32(719468 + 146097*s)
+	L := int(400 * s)
+
+	y := uint32(year + L)
+	m := uint32(month)
+	if month < 3 {
+		y--
+		m += 12
+	}
+
+	d := uint32(day - 1)
+
+	c := y / 100
+
+	y_star := 1461*y/4 - c + c/4
+	m_star := (153*m - 457) / 5
+	n := y_star + m_star + d
+
+	return int32(n - K)
+}
+
 // daysSinceEpoch takes a year and returns the number of days from
 // the absolute epoch to the start of that year.
 // This is basically (year - zeroYear) * 365, but accounting for leap days.
-func daysSinceEpoch(year int) uint64 {
+func daysSinceEpochOriginal(year int) uint64 {
 	y := uint64(int64(year) - absoluteZeroYear)
 
 	// Add in days from 400-year cycles.
@@ -1502,8 +1584,10 @@ func Date(year int, month Month, day, hour, min, sec, nsec int, loc *Location) T
 	day, hour = norm(day, hour, 24)
 
 	// Compute days since the absolute epoch.
-	d := daysSinceEpoch(year)
+	// d := daysSinceEpoch(year, month, day)
+	// unix := int64(int(d)*secondsPerDay + hour*secondsPerHour + min*secondsPerMinute + sec)
 
+	d := daysSinceEpochOriginal(year)
 	// Add in days before this month.
 	d += uint64(daysBefore[month-1])
 	if isLeap(year) && month >= March {
