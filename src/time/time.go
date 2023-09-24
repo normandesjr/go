@@ -502,25 +502,25 @@ func (t Time) locabs() (name string, offset int, abs uint64) {
 
 // Date returns the year, month, and day in which t occurs.
 func (t Time) Date() (year int, month Month, day int) {
-	year, month, day = t.date(true)
+	year, month, day, _ = t.date(true)
 	return
 }
 
 // Year returns the year in which t occurs.
 func (t Time) Year() int {
-	year, _, _ := t.date(false)
+	year, _, _, _ := t.date(false)
 	return year
 }
 
 // Month returns the month of the year specified by t.
 func (t Time) Month() Month {
-	_, month, _ := t.date(true)
+	_, month, _, _ := t.date(true)
 	return month
 }
 
 // Day returns the day of the month specified by t.
 func (t Time) Day() int {
-	_, _, day := t.date(true)
+	_, _, day, _ := t.date(true)
 	return day
 }
 
@@ -559,8 +559,7 @@ func (t Time) ISOWeek() (year, week int) {
 	}
 	// find the Thursday of the calendar week
 	abs += uint64(d) * secondsPerDay
-	year, _, _ = absDate(abs, false)
-	yday := absYearDay(abs)
+	year, _, _, yday := absDate(abs, false)
 	return year, yday/7 + 1
 }
 
@@ -603,7 +602,8 @@ func (t Time) Nanosecond() int {
 // YearDay returns the day of the year specified by t, in the range [1,365] for non-leap years,
 // and [1,366] in leap years.
 func (t Time) YearDay() int {
-	return absYearDay(t.abs()) + 1
+	_, _, _, yday := t.date(false)
+	return yday + 1
 }
 
 // A Duration represents the elapsed time between two instants
@@ -958,11 +958,11 @@ const (
 
 // date computes the year, day of year, and when full=true,
 // the month and day in which t occurs.
-func (t Time) date(full bool) (year int, month Month, day int) {
+func (t Time) date(full bool) (year int, month Month, day int, yday int) {
 	return absDate(t.abs(), full)
 }
 
-func absDate(abs uint64, full bool) (year int, month Month, day int) {
+func absDate(abs uint64, full bool) (year int, month Month, day int, yday int) {
 	daysAbs := int64(abs / secondsPerDay)
 
 	daysUnix := int32(daysAbs - (unixToInternal+internalToAbsolute)/secondsPerDay)
@@ -985,9 +985,25 @@ func absDate(abs uint64, full bool) (year int, month Month, day int) {
 	Z := uint32(P_2 / 4294967296)
 	N_Y := uint32(P_2%4294967296) / 2939745 / 4
 
+	isLeapYear := 0
+	if Z != 0 {
+		if Z%4 == 0 {
+			isLeapYear = 1
+		}
+	} else if C%4 == 0 {
+		isLeapYear = 1
+	}
+
 	J := 0
 	if N_Y >= 306 {
 		J = 1
+	}
+
+	yday = int(N_Y)
+	if J == 1 {
+		yday = yday - 306
+	} else {
+		yday = yday + 31 + 28 + isLeapYear
 	}
 
 	Y := 100*C + Z
@@ -1011,26 +1027,26 @@ func absDate(abs uint64, full bool) (year int, month Month, day int) {
 	return
 }
 
-func absYearDay(abs uint64) int {
-	daysAbs := int64(abs / secondsPerDay)
-	daysUnix := int32(daysAbs - (unixToInternal+internalToAbsolute)/secondsPerDay)
+// func absYearDay(abs uint64) int {
+// 	daysAbs := int64(abs / secondsPerDay)
+// 	daysUnix := int32(daysAbs - (unixToInternal+internalToAbsolute)/secondsPerDay)
 
-	// Shift and correction constants.
-	s := uint32(3670)
-	K := uint32(719468 - 306 + 146097*s)
-	N := uint32(daysUnix) + K
+// 	// Shift and correction constants.
+// 	s := uint32(3670)
+// 	K := uint32(719468 - 306 + 146097*s)
+// 	N := uint32(daysUnix) + K
 
-	// Century
-	N_1 := 4*N + 3
+// 	// Century
+// 	N_1 := 4*N + 3
 
-	// Year
-	R := N_1 % 146097
-	N_2 := R | 3
-	P_2 := 2939745 * uint64(N_2)
-	N_Y := uint32(P_2%4294967296) / 2939745 / 4
+// 	// Year
+// 	R := N_1 % 146097
+// 	N_2 := R | 3
+// 	P_2 := 2939745 * uint64(N_2)
+// 	N_Y := uint32(P_2%4294967296) / 2939745 / 4
 
-	return int(N_Y)
-}
+// 	return int(N_Y)
+// }
 
 // daysBefore[m] counts the number of days in a non-leap year
 // before month m begins. There is an entry for m=12, counting
