@@ -562,7 +562,7 @@ func (t Time) ISOWeek() (year, week int) {
 	// find the Thursday of the calendar week
 	abs += uint64(d) * secondsPerDay
 	year, _ = nsYearDayOfYear(abs)
-	yday := int(nsYearDay(abs)) + 1
+	yday := int(nsYearDay(abs))
 	// year, _, _, yday := absDateFull(abs, false)
 
 	return year, yday/7 + 1
