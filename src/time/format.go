@@ -557,7 +557,7 @@ func (t Time) String() string {
 // code.
 func (t Time) GoString() string {
 	abs := t.abs()
-	year, month, day, _ := absDate(abs, true)
+	year, month, day := absDateWithoutYday(abs, true)
 	hour, minute, second := absClock(abs)
 
 	buf := make([]byte, 0, len("time.Date(9999, time.September, 31, 23, 59, 59, 999999999, time.Local)"))
