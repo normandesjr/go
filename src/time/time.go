@@ -508,20 +508,22 @@ func (t Time) Date() (year int, month Month, day int) {
 
 // Year returns the year in which t occurs.
 func (t Time) Year() int {
-	year, _, _ := t.date(false)
-	return year
+	y, _ := nsYearDayOfYear(t.abs())
+	return y
 }
 
 // Month returns the month of the year specified by t.
 func (t Time) Month() Month {
-	_, month, _ := t.date(true)
-	return month
+	_, N_Y := nsYearDayOfYear(t.abs())
+	m, _ := nsMonthDay(N_Y)
+	return m
 }
 
 // Day returns the day of the month specified by t.
 func (t Time) Day() int {
-	_, _, day := t.date(true)
-	return day
+	_, N_Y := nsYearDayOfYear(t.abs())
+	_, d := nsMonthDay(N_Y)
+	return d
 }
 
 // Weekday returns the day of the week specified by t.
@@ -602,7 +604,7 @@ func (t Time) Nanosecond() int {
 // YearDay returns the day of the year specified by t, in the range [1,365] for non-leap years,
 // and [1,366] in leap years.
 func (t Time) YearDay() int {
-	return absYearDay(t.abs()) + 1
+	return int(nsYearDay(t.abs())) + 1
 }
 
 // A Duration represents the elapsed time between two instants
@@ -1093,6 +1095,84 @@ func absYearDay(abs uint64) int {
 	N_Y := uint32(P_2%4294967296) / 2939745 / 4
 
 	return int(N_Y)
+}
+
+// Returns the year on the Gregorian calendar and the day of the year on the Computational calendar
+// from number of seconds since absolute date.
+func nsYearDayOfYear(abs uint64) (year int, N_Y uint32) {
+	daysAbs := int64(abs / secondsPerDay)
+	daysUnix := int32(daysAbs - (unixToInternal+internalToAbsolute)/secondsPerDay)
+
+	// Shift and correction constants.
+	s := uint32(3670)
+	K := uint32(719468 + 146097*s)
+	L := int(400 * s)
+
+	N := uint32(daysUnix) + K
+
+	// Century
+	N_1 := 4*N + 3
+	C := N_1 / 146097
+
+	// Year
+	R := N_1 % 146097
+	N_2 := R | 3
+	P_2 := 2939745 * uint64(N_2)
+	Z := uint32(P_2 / 4294967296)
+	N_Y = uint32(P_2%4294967296) / 2939745 / 4
+
+	Y := 100*C + Z
+
+	J := 0
+	if N_Y >= 306 {
+		J = 1
+	}
+
+	year = int(Y) - L + J
+
+	return
+}
+
+// Returns the month and day on the Gregorian calendar
+// from the day of the year on the Computational calendar.
+func nsMonthDay(N_Y uint32) (month Month, day int) {
+
+	N_3 := 2141*N_Y + 197913
+	M := N_3 / 65536
+	D := N_3 % 65536 / 2141
+
+	if N_Y >= 306 {
+		month = Month(M - 12)
+	} else {
+		month = Month(M)
+	}
+
+	day = int(D + 1)
+
+	return
+}
+
+// Returns the zero-based day of the year on the Gregorian calendar.
+func nsYearDay(abs uint64) uint32 {
+
+	daysAbs := int64(abs / secondsPerDay)
+	daysUnix := int32(daysAbs - (unixToInternal+internalToAbsolute)/secondsPerDay)
+
+	// Shift and correction constants.
+	s := uint32(3670)
+	K := uint32(719468 - 306 + 146097*s)
+	N := uint32(daysUnix) + K
+
+	// Century
+	N_1 := 4*N + 3
+
+	// Year
+	R := N_1 % 146097
+	N_2 := R | 3
+	P_2 := 2939745 * uint64(N_2)
+	N_Y := uint32(P_2%4294967296) / 2939745 / 4
+
+	return N_Y
 }
 
 // daysBefore[m] counts the number of days in a non-leap year
