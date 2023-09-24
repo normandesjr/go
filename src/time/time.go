@@ -502,25 +502,25 @@ func (t Time) locabs() (name string, offset int, abs uint64) {
 
 // Date returns the year, month, and day in which t occurs.
 func (t Time) Date() (year int, month Month, day int) {
-	year, month, day, _ = t.date(true)
+	year, month, day = t.date(true)
 	return
 }
 
 // Year returns the year in which t occurs.
 func (t Time) Year() int {
-	year, _, _, _ := t.date(false)
+	year, _, _ := t.date(false)
 	return year
 }
 
 // Month returns the month of the year specified by t.
 func (t Time) Month() Month {
-	_, month, _, _ := t.date(true)
+	_, month, _ := t.date(true)
 	return month
 }
 
 // Day returns the day of the month specified by t.
 func (t Time) Day() int {
-	_, _, day, _ := t.date(true)
+	_, _, day := t.date(true)
 	return day
 }
 
@@ -559,7 +559,7 @@ func (t Time) ISOWeek() (year, week int) {
 	}
 	// find the Thursday of the calendar week
 	abs += uint64(d) * secondsPerDay
-	year, _, _, yday := absDate(abs, false)
+	year, _, _, yday := absDateFull(abs, false)
 	return year, yday/7 + 1
 }
 
@@ -957,17 +957,12 @@ const (
 
 // date computes the year, day of year, and when full=true,
 // the month and day in which t occurs.
-func (t Time) date(full bool) (year int, month Month, day int, yday int) {
+func (t Time) date(full bool) (year int, month Month, day int) {
 	return absDate(t.abs(), full)
 }
 
-func (t Time) dateWithoutYday(full bool) (year int, month Month, day int) {
-	return absDateWithoutYday(t.abs(), full)
-}
-
-func absDateWithoutYday(abs uint64, full bool) (year int, month Month, day int) {
+func absDate(abs uint64, full bool) (year int, month Month, day int) {
 	daysAbs := int64(abs / secondsPerDay)
-
 	daysUnix := int32(daysAbs - (unixToInternal+internalToAbsolute)/secondsPerDay)
 
 	// Shift and correction constants.
@@ -1014,7 +1009,7 @@ func absDateWithoutYday(abs uint64, full bool) (year int, month Month, day int) 
 	return
 }
 
-func absDate(abs uint64, full bool) (year int, month Month, day int, yday int) {
+func absDateFull(abs uint64, full bool) (year int, month Month, day int, yday int) {
 	daysAbs := int64(abs / secondsPerDay)
 
 	daysUnix := int32(daysAbs - (unixToInternal+internalToAbsolute)/secondsPerDay)
