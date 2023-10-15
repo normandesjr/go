@@ -1121,10 +1121,33 @@ func daysIn(m Month, year int) int {
 	return int(daysBefore[m] - daysBefore[m-1])
 }
 
+func daysSinceEpoch(year int, month Month, day int) int32 {
+	s := uint32(3670)
+	K := uint32(719468 + 146097*s)
+	L := int(400 * s)
+
+	y := uint32(year + L)
+	m := uint32(month)
+	if month < 3 {
+		y--
+		m += 12
+	}
+
+	d := uint32(day - 1)
+
+	c := y / 100
+
+	y_star := 1461*y/4 - c + c/4
+	m_star := (153*m - 457) / 5
+	n := y_star + m_star + d
+
+	return int32(n - K)
+}
+
 // daysSinceEpoch takes a year and returns the number of days from
 // the absolute epoch to the start of that year.
 // This is basically (year - zeroYear) * 365, but accounting for leap days.
-func daysSinceEpoch(year int) uint64 {
+func daysSinceEpochOriginal(year int) uint64 {
 	y := uint64(int64(year) - absoluteZeroYear)
 
 	// Add in days from 400-year cycles.
@@ -1540,8 +1563,10 @@ func Date(year int, month Month, day, hour, min, sec, nsec int, loc *Location) T
 	day, hour = norm(day, hour, 24)
 
 	// Compute days since the absolute epoch.
-	d := daysSinceEpoch(year)
+	// d := daysSinceEpoch(year, month, day)
+	// unix := int64(int(d)*secondsPerDay + hour*secondsPerHour + min*secondsPerMinute + sec)
 
+	d := daysSinceEpochOriginal(year)
 	// Add in days before this month.
 	d += uint64(daysBefore[month-1])
 	if isLeap(year) && month >= March {
