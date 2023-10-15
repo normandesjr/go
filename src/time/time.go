@@ -1583,25 +1583,25 @@ func Date(year int, month Month, day, hour, min, sec, nsec int, loc *Location) T
 	hour, min = norm(hour, min, 60)
 	day, hour = norm(day, hour, 24)
 
+	d := daysSinceEpoch(year, month, day)
+	unix := int64(int(d)*secondsPerDay + hour*secondsPerHour + min*secondsPerMinute + sec)
+
 	// Compute days since the absolute epoch.
-	// d := daysSinceEpoch(year, month, day)
-	// unix := int64(int(d)*secondsPerDay + hour*secondsPerHour + min*secondsPerMinute + sec)
+	// d := daysSinceEpochOriginal(year)
+	// // Add in days before this month.
+	// d += uint64(daysBefore[month-1])
+	// if isLeap(year) && month >= March {
+	// 	d++ // February 29
+	// }
 
-	d := daysSinceEpochOriginal(year)
-	// Add in days before this month.
-	d += uint64(daysBefore[month-1])
-	if isLeap(year) && month >= March {
-		d++ // February 29
-	}
+	// // Add in days before today.
+	// d += uint64(day - 1)
 
-	// Add in days before today.
-	d += uint64(day - 1)
+	// // Add in time elapsed today.
+	// abs := d * secondsPerDay
+	// abs += uint64(hour*secondsPerHour + min*secondsPerMinute + sec)
 
-	// Add in time elapsed today.
-	abs := d * secondsPerDay
-	abs += uint64(hour*secondsPerHour + min*secondsPerMinute + sec)
-
-	unix := int64(abs) + (absoluteToInternal + internalToUnix)
+	// unix := int64(abs) + (absoluteToInternal + internalToUnix)
 
 	// Look for zone offset for expected time, so we can adjust to UTC.
 	// The lookup function expects UTC, so first we pass unix in the

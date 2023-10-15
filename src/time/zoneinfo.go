@@ -337,9 +337,9 @@ func tzset(s string, lastTxSec, sec int64) (name string, offset int, start, end 
 	ysec := int64(yday*secondsPerDay) + sec%secondsPerDay
 
 	// Compute start of year in seconds since Unix epoch.
-	d := daysSinceEpochOriginal(year)
+	d := daysSinceEpoch(year, 1, 1)
 	abs := int64(d * secondsPerDay)
-	abs += absoluteToInternal + internalToUnix
+	// abs += absoluteToInternal + internalToUnix
 
 	startSec := int64(tzruleTime(year, startRule, stdOffset))
 	endSec := int64(tzruleTime(year, endRule, dstOffset))

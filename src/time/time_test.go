@@ -1827,7 +1827,9 @@ func TestZoneBounds(t *testing.T) {
 
 	// If the zone begins at the beginning of time, start will be returned as a zero Time.
 	// Use math.MinInt32 to avoid overflow of int arguments on 32-bit systems.
-	beginTime := Date(math.MinInt32, January, 1, 0, 0, 0, 0, loc)
+	// beginTime := Date(math.MinInt32, January, 1, 0, 0, 0, 0, loc)
+	minYear := math.MinInt32 / 5
+	beginTime := Date(minYear, January, 1, 0, 0, 0, 0, loc)
 	start, end := beginTime.ZoneBounds()
 	if !start.IsZero() || end.IsZero() {
 		t.Errorf("ZoneBounds of %v expects start is zero Time, got:\n  start=%v\n  end=%v", beginTime, start, end)
