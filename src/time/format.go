@@ -671,7 +671,7 @@ func (t Time) appendFormat(b []byte, layout string) []byte {
 
 		// Compute year, month, day if needed.
 		if year < 0 && std&stdNeedDate != 0 {
-			year, month, day, yday = absDateFull(abs, true)
+			year, month, day, yday = absDateWithYday(abs, true)
 			yday++
 		}
 

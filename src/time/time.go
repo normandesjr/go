@@ -565,7 +565,7 @@ func (t Time) ISOWeek() (year, week int) {
 	}
 	// find the Thursday of the calendar week
 	abs += uint64(d) * secondsPerDay
-	year, _, _, yday := absDateFull(abs, false)
+	year, _, _, yday := absDateWithYday(abs, false)
 	return year, yday/7 + 1
 }
 
@@ -1030,7 +1030,7 @@ func absDate(abs uint64, full bool) (year int, month Month, day int) {
 	return
 }
 
-func absDateFull(abs uint64, full bool) (year int, month Month, day int, yday int) {
+func absDateWithYday(abs uint64, full bool) (year int, month Month, day int, yday int) {
 	daysAbs := int64(abs / secondsPerDay)
 
 	daysUnix := int32(daysAbs - (unixToInternal+internalToAbsolute)/secondsPerDay)

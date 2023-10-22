@@ -332,7 +332,7 @@ func tzset(s string, lastTxSec, sec int64) (name string, offset int, start, end 
 	}
 
 	absTmp := uint64(sec + unixToInternal + internalToAbsolute)
-	year, _, _, yday := absDateFull(absTmp, false)
+	year, _, _, yday := absDateWithYday(absTmp, false)
 
 	ysec := int64(yday*secondsPerDay) + sec%secondsPerDay
 
