@@ -982,6 +982,9 @@ func (t Time) date(full bool) (year int, month Month, day int) {
 	return absDate(t.abs(), full)
 }
 
+// The algorithm is figure 12 of Neri, Schneider, "Euclidean affine functions
+// and their application to calendar algorithms".
+// https://onlinelibrary.wiley.com/doi/full/10.1002/spe.3172
 func absDate(abs uint64, full bool) (year int, month Month, day int) {
 	daysAbs := int64(abs / secondsPerDay)
 	daysUnix := int32(daysAbs - (unixToInternal+internalToAbsolute)/secondsPerDay)
@@ -1030,13 +1033,16 @@ func absDate(abs uint64, full bool) (year int, month Month, day int) {
 	return
 }
 
+// The algorithm is basicaly figure 12 of Neri, Schneider, "Euclidean affine functions
+// and their application to calendar algorithms", adapted to calculate yday.
+// https://onlinelibrary.wiley.com/doi/full/10.1002/spe.3172
 func absDateWithYday(abs uint64, full bool) (year int, month Month, day int, yday int) {
 	daysAbs := int64(abs / secondsPerDay)
 
 	daysUnix := int32(daysAbs - (unixToInternal+internalToAbsolute)/secondsPerDay)
 
 	// Shift and correction constants.
-	s := uint32(3670)
+	s := uint32(3670) // chosen so that 1970 is roughly in the middle of the range
 	K := uint32(719468 + 146097*s)
 	L := int(400 * s)
 
@@ -1100,7 +1106,7 @@ func absYearDay(abs uint64) int {
 	daysUnix := int32(daysAbs - (unixToInternal+internalToAbsolute)/secondsPerDay)
 
 	// Shift and correction constants.
-	s := uint32(3670)
+	s := uint32(3670) // chosen so that 1970 is roughly in the middle of the range
 	K := uint32(719468 - 306 + 146097*s)
 	N := uint32(daysUnix) + K
 
@@ -1142,8 +1148,14 @@ func daysIn(m Month, year int) int {
 	return int(daysBefore[m] - daysBefore[m-1])
 }
 
+// daysSinceEpoch takes a year, month and day and returns the number of days from
+// Jan 1 1970 (Unix time) to the given date.
+// The algorithm is figure 13 of Neri, Schneider, "Euclidean affine functions
+// and their application to calendar algorithms".
+// https://onlinelibrary.wiley.com/doi/full/10.1002/spe.3172
+// It gives correct results if the date is in the range [-1,468,000/Mar/01, 1,471,745/Fev/28].
 func daysSinceEpoch(year int, month Month, day int) int32 {
-	s := uint32(3670)
+	s := uint32(3670) // chosen so that 1970 is roughly in the middle of the range
 	K := uint32(719468 + 146097*s)
 	L := int(400 * s)
 
@@ -1163,34 +1175,6 @@ func daysSinceEpoch(year int, month Month, day int) int32 {
 	n := y_star + m_star + d
 
 	return int32(n - K)
-}
-
-// daysSinceEpoch takes a year and returns the number of days from
-// the absolute epoch to the start of that year.
-// This is basically (year - zeroYear) * 365, but accounting for leap days.
-func daysSinceEpochOriginal(year int) uint64 {
-	y := uint64(int64(year) - absoluteZeroYear)
-
-	// Add in days from 400-year cycles.
-	n := y / 400
-	y -= 400 * n
-	d := daysPer400Years * n
-
-	// Add in 100-year cycles.
-	n = y / 100
-	y -= 100 * n
-	d += daysPer100Years * n
-
-	// Add in 4-year cycles.
-	n = y / 4
-	y -= 4 * n
-	d += daysPer4Years * n
-
-	// Add in non-leap years.
-	n = y
-	d += 365 * n
-
-	return d
 }
 
 // Provided by package runtime.
@@ -1559,6 +1543,10 @@ func norm(hi, lo, base int) (nhi, nlo int) {
 // their usual ranges and will be normalized during the conversion.
 // For example, October 32 converts to November 1.
 //
+// The normalized year must be in [-32767, 32767].
+// For example, for month==13 and year==2020, the Date converts to
+// January 2021.
+//
 // A daylight savings time transition skips or repeats times.
 // For example, in the United States, March 13, 2011 2:15am never occurred,
 // while November 6, 2011 1:15am occurred twice. In such cases, the
@@ -1566,7 +1554,7 @@ func norm(hi, lo, base int) (nhi, nlo int) {
 // Date returns a time that is correct in one of the two zones involved
 // in the transition, but it does not guarantee which.
 //
-// Date panics if loc is nil.
+// Date panics if loc is nil or if normalized year is out of the range [-32767, 32767].
 func Date(year int, month Month, day, hour, min, sec, nsec int, loc *Location) Time {
 	if loc == nil {
 		panic("time: missing Location in call to Date")
@@ -1575,6 +1563,9 @@ func Date(year int, month Month, day, hour, min, sec, nsec int, loc *Location) T
 	// Normalize month, overflowing into year.
 	m := int(month) - 1
 	year, m = norm(year, m, 12)
+	if year > 32767 || year < -32767 {
+		panic("time: year is out of range [-32767, 32767]")
+	}
 	month = Month(m) + 1
 
 	// Normalize nsec, sec, min, hour, overflowing into day.
